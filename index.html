@@ -1,0 +1,295 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mood Tracker — Daily Emoji Check-in</title>
+<style>
+  :root{
+    --bg:#0f1226; --card:#1a1f3d; --card2:#232a52; --text:#eef1ff; --muted:#9aa3c7;
+    --accent:#7c6cff; --accent2:#ff8fab; --good:#4ade80; --border:rgba(255,255,255,.08);
+    --radius:18px;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; font-family: ui-rounded, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    background: radial-gradient(1200px 600px at 20% -10%, #2a2f7a 0%, transparent 60%),
+                radial-gradient(900px 500px at 90% 10%, #5b2a6e 0%, transparent 55%),
+                var(--bg);
+    color:var(--text); min-height:100vh;
+  }
+  .wrap{max-width:1080px; margin:0 auto; padding:28px 20px 60px}
+  header{display:flex; gap:16px; align-items:center; justify-content:space-between; flex-wrap:wrap; margin-bottom:20px}
+  .brand{display:flex; gap:14px; align-items:center}
+  .logo{width:52px;height:52px; border-radius:16px; display:grid; place-items:center; font-size:30px;
+    background:linear-gradient(135deg,var(--accent),var(--accent2)); box-shadow:0 10px 30px rgba(124,108,255,.4)}
+  h1{margin:0; font-size:28px; letter-spacing:-.02em}
+  .sub{color:var(--muted); margin:4px 0 0; font-size:14px}
+  .grid{display:grid; grid-template-columns:380px 1fr; gap:18px}
+  @media(max-width:900px){.grid{grid-template-columns:1fr}}
+  .card{background:linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.02));
+    border:1px solid var(--border); border-radius:var(--radius); padding:20px;
+    backdrop-filter:blur(10px); box-shadow:0 12px 40px rgba(0,0,0,.3)}
+  .card h2{margin:0 0 4px; font-size:18px}
+  .card p.desc{margin:0 0 16px; color:var(--muted); font-size:13.5px}
+  .date-row{display:flex; gap:10px; align-items:center; margin-bottom:14px}
+  input[type=date]{flex:1; background:#101435; color:var(--text); border:1px solid var(--border);
+    border-radius:12px; padding:10px 12px; font-size:15px; outline:none}
+  input[type=date]:focus{border-color:var(--accent)}
+  .today-btn{background:#101435; border:1px solid var(--border); color:var(--text);
+    border-radius:12px; padding:10px 14px; cursor:pointer; font-weight:600}
+  .today-btn:hover{border-color:var(--accent)}
+  .emoji-grid{display:grid; grid-template-columns:repeat(5,1fr); gap:10px; margin:12px 0}
+  .emoji-btn{font-size:30px; padding:12px 0 8px; border-radius:14px; border:2px solid transparent;
+    background:var(--card2); cursor:pointer; transition:.15s; position:relative; line-height:1}
+  .emoji-btn small{display:block; font-size:10.5px; color:var(--muted); margin-top:4px; font-weight:600}
+  .emoji-btn:hover{transform:translateY(-2px) scale(1.03); border-color:rgba(124,108,255,.4)}
+  .emoji-btn.selected{border-color:var(--accent); background:#2e3670; box-shadow:0 0 0 3px rgba(124,108,255,.25)}
+  textarea{width:100%; min-height:74px; resize:vertical; border-radius:12px; border:1px solid var(--border);
+    background:#101435; color:var(--text); padding:10px 12px; font-size:14px; font-family:inherit; outline:none}
+  textarea:focus{border-color:var(--accent)}
+  .save{width:100%; margin-top:12px; padding:13px; border:0; border-radius:13px; font-size:15px; font-weight:800;
+    cursor:pointer; color:white; background:linear-gradient(135deg,var(--accent),#b565ff 60%,var(--accent2))}
+  .save:hover{filter:brightness(1.08)}
+  .save:disabled{opacity:.6; cursor:default}
+  .saved-hint{min-height:20px; font-size:13px; color:var(--good); margin-top:8px; text-align:center}
+  /* calendar */
+  .cal-head{display:flex; align-items:center; justify-content:space-between; margin-bottom:12px}
+  .cal-head strong{font-size:18px}
+  .nav{display:flex; gap:8px}
+  .nav button{background:#101435; border:1px solid var(--border); color:var(--text);
+    width:36px;height:36px; border-radius:10px; cursor:pointer; font-size:18px}
+  .nav button:hover{border-color:var(--accent)}
+  .weekdays,.days{display:grid; grid-template-columns:repeat(7,1fr); gap:8px}
+  .weekdays{color:var(--muted); font-size:12px; font-weight:700; text-align:center; margin-bottom:8px; text-transform:uppercase; letter-spacing:.06em}
+  .day{min-height:78px; background:#12163a; border:1px solid var(--border); border-radius:14px;
+    padding:8px; cursor:pointer; position:relative; transition:.15s; overflow:hidden}
+  .day:hover{border-color:var(--accent)}
+  .day.other{opacity:.32}
+  .day.selected{outline:2px solid var(--accent); outline-offset:1px}
+  .day.today{border-color:var(--accent2)}
+  .day .dnum{font-size:12px; font-weight:800; color:var(--muted)}
+  .day .emo{font-size:26px; text-align:center; margin-top:4px; line-height:1.2}
+  .day .dot{position:absolute; bottom:6px; left:50%; transform:translateX(-50%); width:5px;height:5px;border-radius:50%; background:var(--accent2)}
+  /* stats */
+  .stats{display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-top:18px}
+  @media(max-width:600px){.stats{grid-template-columns:repeat(2,1fr)} .emoji-grid{grid-template-columns:repeat(5,1fr)}}
+  .stat{background:#12163a; border:1px solid var(--border); border-radius:14px; padding:12px; text-align:center}
+  .stat b{display:block; font-size:22px}
+  .stat span{font-size:12px; color:var(--muted)}
+  .breakdown{display:flex; gap:8px; flex-wrap:wrap; margin-top:14px}
+  .chip{background:#12163a; border:1px solid var(--border); border-radius:999px; padding:6px 12px; font-size:13px}
+  .history{margin-top:18px; display:flex; flex-direction:column; gap:10px; max-height:320px; overflow:auto}
+  .hrow{display:flex; gap:12px; align-items:center; background:#12163a; border:1px solid var(--border);
+    border-radius:12px; padding:10px 12px; font-size:14px}
+  .hrow .e{font-size:24px}
+  .hrow time{font-weight:800; white-space:nowrap}
+  .hrow p{margin:0; color:var(--muted); flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+  .hrow button{background:transparent; border:0; cursor:pointer; font-size:16px; opacity:.7}
+  .hrow button:hover{opacity:1}
+  .row-actions{display:flex; gap:10px; margin-top:14px}
+  .ghost{flex:1; background:transparent; border:1px solid var(--border); color:var(--muted);
+    border-radius:12px; padding:10px; cursor:pointer; font-weight:600}
+  .ghost:hover{color:var(--text); border-color:var(--accent)}
+  footer{margin-top:22px; text-align:center; color:var(--muted); font-size:12px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="brand">
+      <div class="logo">😊</div>
+      <div>
+        <h1>Mood Tracker</h1>
+        <p class="sub">Pick an emoji each day — build your emotional calendar. Data stays in your browser.</p>
+      </div>
+    </div>
+    <div class="chip" id="streakTop">🔥 0 day streak</div>
+  </header>
+
+  <div class="grid">
+    <section class="card">
+      <h2>How are you feeling?</h2>
+      <p class="desc">Choose a date, tap an emoji, optionally add a note, then save.</p>
+      <div class="date-row">
+        <input type="date" id="dateInput" aria-label="Choose date">
+        <button class="today-btn" id="todayBtn">Today</button>
+      </div>
+      <div class="emoji-grid" id="emojiGrid" role="radiogroup" aria-label="Choose mood emoji"></div>
+      <label for="note" style="font-size:13px;color:var(--muted);font-weight:700">NOTE (OPTIONAL)</label>
+      <textarea id="note" placeholder="What made you feel this way? e.g. sunny walk, shipped a feature…"></textarea>
+      <button class="save" id="saveBtn" disabled>Save mood ✨</button>
+      <div class="saved-hint" id="hint"></div>
+      <div class="row-actions">
+        <button class="ghost" id="clearDay">Clear this day</button>
+        <button class="ghost" id="exportBtn">Export JSON</button>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="cal-head">
+        <strong id="monthLabel">Month</strong>
+        <div class="nav">
+          <button id="prev" aria-label="Previous month">‹</button>
+          <button id="next" aria-label="Next month">›</button>
+        </div>
+      </div>
+      <div class="weekdays"><div>Mon</div><div>Tue</div><div>Wed</div><div>Thu</div><div>Fri</div><div>Sat</div><div>Sun</div></div>
+      <div class="days" id="days"></div>
+
+      <div class="stats">
+        <div class="stat"><b id="sTotal">0</b><span>days logged</span></div>
+        <div class="stat"><b id="sStreak">0</b><span>day streak</span></div>
+        <div class="stat"><b id="sMonth">0</b><span>this month</span></div>
+        <div class="stat"><b id="sAvg">–</b><span>avg mood (1-5)</span></div>
+      </div>
+      <div class="breakdown" id="breakdown"></div>
+      <h3 style="margin:18px 0 0;font-size:15px">Recent entries</h3>
+      <div class="history" id="history"></div>
+    </section>
+  </div>
+  <footer>Built as a static single file • localStorage key: <code>mood-tracker-v1</code></footer>
+</div>
+
+<script>
+const MOODS = [
+  {e:'😭', label:'Awful', score:1},
+  {e:'😟', label:'Low', score:2},
+  {e:'😐', label:'Okay', score:3},
+  {e:'🙂', label:'Good', score:4},
+  {e:'🤩', label:'Great', score:5},
+  {e:'😡', label:'Angry', score:2},
+  {e:'😴', label:'Tired', score:2},
+  {e:'😰', label:'Anxious', score:2},
+  {e:'🥰', label:'Loved', score:5},
+  {e:'🤯', label:'Stressed', score:1},
+];
+const KEY='mood-tracker-v1';
+const $=id=>document.getElementById(id);
+const grid=$('emojiGrid'), dateInput=$('dateInput'), noteEl=$('note'),
+  saveBtn=$('saveBtn'), hint=$('hint'), daysEl=$('days'), monthLabel=$('monthLabel');
+
+function todayISO(){ const d=new Date(); return toISO(d); }
+function toISO(d){ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+function parseISO(s){ const [y,m,dd]=s.split('-').map(Number); return new Date(y,m-1,dd); }
+function load(){ try{return JSON.parse(localStorage.getItem(KEY))||{}}catch{return{}} }
+function saveAll(d){ localStorage.setItem(KEY, JSON.stringify(d)); }
+
+let store = load();
+let selectedDate = todayISO();
+let selectedEmoji = null;
+let viewYear, viewMonth;
+{ const d=new Date(); viewYear=d.getFullYear(); viewMonth=d.getMonth(); }
+
+dateInput.value = selectedDate;
+dateInput.max = '2999-12-31';
+
+// build emoji buttons
+MOODS.forEach(m=>{
+  const b=document.createElement('button');
+  b.className='emoji-btn'; b.type='button';
+  b.innerHTML=`${m.e}<small>${m.label}</small>`;
+  b.title=m.label;
+  b.onclick=()=>{ selectedEmoji=m.e; [...grid.children].forEach(x=>x.classList.remove('selected')); b.classList.add('selected'); saveBtn.disabled=false; hint.textContent=''; };
+  b.dataset.emoji=m.e;
+  grid.appendChild(b);
+});
+
+function syncForm(){
+  const entry = store[selectedDate];
+  selectedEmoji = entry?.emoji || null;
+  [...grid.children].forEach(x=>x.classList.toggle('selected', x.dataset.emoji===selectedEmoji));
+  noteEl.value = entry?.note || '';
+  saveBtn.disabled = !selectedEmoji;
+  saveBtn.textContent = entry ? 'Update mood ✨' : 'Save mood ✨';
+  hint.textContent = entry ? `Saved: ${entry.emoji} on ${selectedDate}` : '';
+}
+
+dateInput.onchange=()=>{ if(!dateInput.value) return; selectedDate=dateInput.value; syncForm(); render(); };
+$('todayBtn').onclick=()=>{ selectedDate=todayISO(); dateInput.value=selectedDate;
+  const d=parseISO(selectedDate); viewYear=d.getFullYear(); viewMonth=d.getMonth(); syncForm(); render(); };
+
+saveBtn.onclick=()=>{
+  if(!selectedEmoji) return;
+  store[selectedDate]={emoji:selectedEmoji, note:noteEl.value.trim(), ts:Date.now()};
+  saveAll(store);
+  hint.textContent=`Saved ${selectedEmoji} for ${selectedDate} ✓`;
+  const d=parseISO(selectedDate); viewYear=d.getFullYear(); viewMonth=d.getMonth();
+  syncForm(); render();
+};
+$('clearDay').onclick=()=>{ delete store[selectedDate]; saveAll(store); syncForm(); render(); hint.textContent='Cleared '+selectedDate; };
+$('exportBtn').onclick=()=>{
+  const blob=new Blob([JSON.stringify(store,null,2)],{type:'application/json'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='mood-tracker.json'; a.click();
+  setTimeout(()=>URL.revokeObjectURL(a.href),2000);
+};
+
+$('prev').onclick=()=>{ viewMonth--; if(viewMonth<0){viewMonth=11;viewYear--;} render(); };
+$('next').onclick=()=>{ viewMonth++; if(viewMonth>11){viewMonth=0;viewYear++;} render(); };
+
+function streak(){
+  let s=0; let d=new Date();
+  // if today missing, start from yesterday (streak still alive)
+  if(!store[toISO(d)]) d.setDate(d.getDate()-1);
+  while(store[toISO(d)]){ s++; d.setDate(d.getDate()-1); }
+  return s;
+}
+
+function render(){
+  const first=new Date(viewYear,viewMonth,1);
+  monthLabel.textContent=first.toLocaleString(undefined,{month:'long',year:'numeric'});
+  // Monday-start offset
+  let startOffset=(first.getDay()+6)%7;
+  const daysInMonth=new Date(viewYear,viewMonth+1,0).getDate();
+  const prevDays=new Date(viewYear,viewMonth,0).getDate();
+  daysEl.innerHTML='';
+  const total=42;
+  for(let i=0;i<total;i++){
+    const cell=document.createElement('div'); cell.className='day';
+    let dISO, num, other=false;
+    if(i<startOffset){ num=prevDays-startOffset+1+i; const d=new Date(viewYear,viewMonth-1,num); dISO=toISO(d); other=true; }
+    else if(i<startOffset+daysInMonth){ num=i-startOffset+1; dISO=`${viewYear}-${String(viewMonth+1).padStart(2,'0')}-${String(num).padStart(2,'0')}`; }
+    else { num=i-startOffset-daysInMonth+1; const d=new Date(viewYear,viewMonth+1,num); dISO=toISO(d); other=true; }
+    if(other) cell.classList.add('other');
+    if(dISO===selectedDate) cell.classList.add('selected');
+    if(dISO===todayISO()) cell.classList.add('today');
+    const entry=store[dISO];
+    cell.innerHTML=`<div class="dnum">${num}</div><div class="emo">${entry?entry.emoji:''}</div>${entry&&entry.note?'<div class="dot"></div>':''}`;
+    cell.title=dISO+(entry?` — ${entry.emoji} ${entry.note||''}`:'');
+    cell.onclick=()=>{ selectedDate=dISO; dateInput.value=dISO; syncForm(); render(); };
+    daysEl.appendChild(cell);
+    if(i>=startOffset+daysInMonth && (i+1)%7===0 && i>=startOffset+daysInMonth+6) break;
+  }
+  // stats
+  const keys=Object.keys(store).sort();
+  const monthKeys=keys.filter(k=>k.startsWith(`${viewYear}-${String(viewMonth+1).padStart(2,'0')}`));
+  $('sTotal').textContent=keys.length;
+  $('sMonth').textContent=monthKeys.length;
+  const st=streak(); $('sStreak').textContent=st; $('streakTop').textContent=`🔥 ${st} day streak`;
+  const scored=keys.map(k=>MOODS.find(m=>m.e===store[k].emoji)).filter(Boolean);
+  $('sAvg').textContent=scored.length?(scored.reduce((a,m)=>a+m.score,0)/scored.length).toFixed(1):'–';
+  // breakdown
+  const counts={}; keys.forEach(k=>{counts[store[k].emoji]=(counts[store[k].emoji]||0)+1;});
+  const bd=$('breakdown'); bd.innerHTML='';
+  Object.entries(counts).sort((a,b)=>b[1]-a[1]).forEach(([e,c])=>{ const d=document.createElement('div'); d.className='chip'; d.textContent=`${e} × ${c}`; bd.appendChild(d); });
+  if(!keys.length) bd.innerHTML='<span style="color:var(--muted);font-size:13px">No moods yet — tap an emoji to log your first day!</span>';
+  // history
+  const h=$('history'); h.innerHTML='';
+  [...keys].reverse().slice(0,30).forEach(k=>{
+    const row=document.createElement('div'); row.className='hrow';
+    row.innerHTML=`<span class="e">${store[k].emoji}</span><time>${k}</time><p></p>`;
+    row.querySelector('p').textContent=store[k].note||'—';
+    const del=document.createElement('button'); del.textContent='🗑️'; del.title='Delete '+k;
+    del.onclick=ev=>{ev.stopPropagation(); delete store[k]; saveAll(store); if(k===selectedDate) syncForm(); render();};
+    row.appendChild(del);
+    row.onclick=()=>{selectedDate=k; dateInput.value=k; syncForm(); render();};
+    h.appendChild(row);
+  });
+  if(!keys.length) h.innerHTML='<span style="color:var(--muted);font-size:13px">History will appear here.</span>';
+}
+
+syncForm(); render();
+window.__moodStore = {get store(){return store}};
+</script>
+</body>
+</html>
