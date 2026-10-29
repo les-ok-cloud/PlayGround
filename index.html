@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+<meta name="theme-color" content="#fff4ef" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="default" />
+<title>Gloss &amp; Glow — Nail Studio</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop stop-color='%23ff9bbd'/%3E%3Cstop offset='.55' stop-color='%23e85c8a'/%3E%3Cstop offset='1' stop-color='%23b95cc9'/%3E%3C/linearGradient%3E%3C/defs%3E%3Ccircle cx='32' cy='32' r='30' fill='url(%23g)'/%3E%3Cpath d='M32 14l4.2 13.8L50 32l-13.8 4.2L32 50l-4.2-13.8L14 32l13.8-4.2z' fill='white'/%3E%3C/svg%3E" />
+<link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+<div class="app">
+  <div class="ambient" aria-hidden="true">
+    <span class="blob blob-a"></span>
+    <span class="blob blob-b"></span>
+    <span class="blob blob-c"></span>
+    <span class="dust d1">✦</span>
+    <span class="dust d2">✧</span>
+    <span class="dust d3">✦</span>
+    <span class="dust d4">✧</span>
+    <span class="dust d5">✦</span>
+  </div>
+
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true">✦</span>
+      <div class="brand-copy">
+        <h1>Gloss &amp; Glow</h1>
+        <p>Nail Studio</p>
+      </div>
+    </div>
+    <div class="top-actions">
+      <span class="set-badge" id="setBadge">Set 1</span>
+      <button class="icon-btn" id="tiltBtn" type="button" aria-pressed="false" title="Enable tilt controls">
+        <svg class="ico" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="8" y="2.5" width="8" height="16" rx="2" transform="rotate(-18 12 10.5)"/>
+          <path d="M5.6 16.8c.9 1.8 2.5 3 4.6 3.5"/>
+          <path d="M3.4 19.7l.7-2.2 2.1.7"/>
+        </svg>
+        <span class="btn-label">Tilt</span>
+      </button>
+      <button class="icon-btn" id="soundBtn" type="button" aria-pressed="true" title="Mute sound">
+        <svg class="ico ico-sound-on" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M4 9.5v5h3.5L12 18V6L7.5 9.5H4z"/>
+          <path d="M15.5 9a4.2 4.2 0 0 1 0 6"/>
+          <path d="M18 6.5a7.6 7.6 0 0 1 0 11"/>
+        </svg>
+        <svg class="ico ico-sound-off" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M4 9.5v5h3.5L12 18V6L7.5 9.5H4z"/>
+          <path d="M15.5 9.5l5 5M20.5 9.5l-5 5"/>
+        </svg>
+        <span class="btn-label">Sound</span>
+      </button>
+    </div>
+  </header>
+
+  <main class="stage" id="stage">
+    <canvas id="handCanvas" aria-label="A hand with five bare nails. Tap a nail to apply the selected polish and nail art."></canvas>
+
+    <section class="order-card" id="orderCard" aria-live="polite">
+      <div class="order-top">
+        <div class="client-avatar" id="clientAvatar">M</div>
+        <div class="order-copy">
+          <h2 id="orderTitle">Mia's Party Set</h2>
+          <p id="orderSub">Match every nail to the order</p>
+        </div>
+        <div class="order-side">
+          <span class="progress" id="progressText">0/5</span>
+          <button class="new-client" id="newClientBtn" type="button" hidden>New client</button>
+        </div>
+      </div>
+      <div class="order-nails" id="orderNails" aria-label="Client's requested colours and designs"></div>
+    </section>
+
+    <div class="hint" id="hint">
+      <span class="hint-spark" aria-hidden="true">✦</span>
+      Pick a colour, then tap a nail
+    </div>
+
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+    <div class="celebrate" id="celebrate" hidden>
+      <div class="celebrate-card" role="dialog" aria-modal="true" aria-labelledby="celebrateTitle">
+        <div class="star-row" id="stars" aria-label="Star rating"></div>
+        <p class="eyebrow">Set complete</p>
+        <h2 id="celebrateTitle">Flawless!</h2>
+        <p class="celebrate-sub" id="celebrateSub">Mia loves her party nails.</p>
+        <div class="celebrate-stats">
+          <div><b id="statStars">3</b><span>stars</span></div>
+          <div><b id="statTime">0:00</b><span>time</span></div>
+          <div><b id="statLooks">5</b><span>taps</span></div>
+        </div>
+        <button class="primary" id="nextBtn" type="button">Next client <span aria-hidden="true">→</span></button>
+        <button class="ghost" id="keepBtn" type="button">Keep decorating</button>
+      </div>
+    </div>
+  </main>
+
+  <footer class="dock">
+    <div class="dock-head">
+      <span class="dock-title"><span class="dock-dot" aria-hidden="true"></span> Polish</span>
+      <span class="selected-name" id="selectedName">Cherry</span>
+    </div>
+    <div class="palette" id="palette" role="listbox" aria-label="Polish colours"></div>
+    <div class="dock-head dock-head-art">
+      <span class="dock-title">Nail art</span>
+      <span class="dock-tools">
+        <button class="mini-btn" id="resetBtn" type="button">Clear</button>
+        <button class="mini-btn" id="newSetBtn" type="button">New client</button>
+      </span>
+    </div>
+    <div class="designs" id="designs" role="listbox" aria-label="Nail designs"></div>
+    <p class="dock-tip"><span aria-hidden="true">✦</span> Tap a nail to paint <span aria-hidden="true">✦</span></p>
+  </footer>
+</div>
+
+<script src="./game.js" defer></script>
+</body>
+</html>
