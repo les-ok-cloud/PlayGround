@@ -44,11 +44,11 @@
   ];
 
   const FINGERS = [
-    { id: 'thumb', base: [300, 700], tip: [172, 512], width: 84 },
-    { id: 'pinky', base: [478, 660], tip: [512, 430], width: 64 },
-    { id: 'ring', base: [428, 630], tip: [438, 356], width: 74 },
-    { id: 'middle', base: [376, 620], tip: [358, 330], width: 80 },
-    { id: 'index', base: [324, 640], tip: [282, 372], width: 76 }
+    { id: 'thumb', base: [320, 708], tip: [186, 508], width: 82, taper: 0.2, bow: -4 },
+    { id: 'pinky', base: [480, 664], tip: [508, 438], width: 62, taper: 0.13, bow: 2 },
+    { id: 'ring', base: [430, 634], tip: [440, 362], width: 72, taper: 0.16, bow: 1 },
+    { id: 'middle', base: [378, 624], tip: [360, 334], width: 78, taper: 0.15, bow: -2 },
+    { id: 'index', base: [326, 644], tip: [284, 378], width: 74, taper: 0.16, bow: 3 }
   ];
 
   const SKIN = {
@@ -63,7 +63,8 @@
   const $ = (id) => document.getElementById(id);
   const stage = $('stage');
   const canvas = $('handCanvas');
-  const ctx = canvas.getContext('2d', { alpha: true, desynchronized: true });
+  let ctx = canvas.getContext('2d', { alpha: true, desynchronized: true });
+  let bodyCanvas = null;
   const paletteEl = $('palette');
   const designsEl = $('designs');
   const selectedNameEl = $('selectedName');
@@ -259,15 +260,16 @@
 
   const nails = [];
   FINGERS.forEach((finger, index) => {
-    const dx = finger.tip[0] - finger.base[0];
-    const dy = finger.tip[1] - finger.base[1];
-    const len = Math.hypot(dx, dy);
-    const dir = { x: dx / len, y: dy / len };
-    const width = finger.width * 0.7;
-    const height = width * 1.62;
+    const fr = fingerFrame(finger);
+    const tdx = finger.tip[0] - fr.cx;
+    const tdy = finger.tip[1] - fr.cy;
+    const tlen = Math.hypot(tdx, tdy) || 1;
+    const tdir = { x: tdx / tlen, y: tdy / tlen };
+    const width = finger.width * 0.52;
+    const height = width * 1.5;
     const center = {
-      x: finger.tip[0] - dir.x * (height / 2 + 5),
-      y: finger.tip[1] - dir.y * (height / 2 + 5)
+      x: finger.tip[0] - tdir.x * (height / 2 + 8),
+      y: finger.tip[1] - tdir.y * (height / 2 + 8)
     };
     const rng = mulberry32(101 + index * 977);
     nails.push({
@@ -277,7 +279,7 @@
       y: center.y,
       w: width,
       h: height,
-      angle: Math.atan2(dir.y, dir.x) - Math.PI / 2,
+      angle: Math.atan2(tdir.y, tdir.x) - Math.PI / 2,
       look: null,
       prev: null,
       paintT: 1,
@@ -294,230 +296,457 @@
     });
   });
 
-  function fingerPath(f) {
-    ctx.beginPath();
-    const [bx, by] = f.base;
+  function fingerFrame(f, extend) {
+    const ext = extend || 0;
+    const [bx0, by0] = f.base;
     const [tx, ty] = f.tip;
-    const dx = tx - bx;
-    const dy = ty - by;
-    const len = Math.hypot(dx, dy);
+    const dx = tx - bx0;
+    const dy = ty - by0;
+    const len = Math.hypot(dx, dy) || 1;
     const dirx = dx / len;
     const diry = dy / len;
+    const bx = bx0 - dirx * ext;
+    const by = by0 - diry * ext;
     const nx = -diry;
     const ny = dirx;
-    const half = f.width / 2;
-    const tipR = f.width * 0.43;
-    const tipCx = tx - dirx * tipR;
-    const tipCy = ty - diry * tipR;
-    const bl = { x: bx + nx * half, y: by + ny * half };
-    const br = { x: bx - nx * half, y: by - ny * half };
-    const tl = { x: tipCx + nx * tipR, y: tipCy + ny * tipR };
-    const tr = { x: tipCx - nx * tipR, y: tipCy - ny * tipR };
+    const bow = f.bow || 0;
+    return {
+      bx, by, tx, ty, dirx, diry, nx, ny,
+      len: len + ext,
+      cx: (bx + tx) / 2 + nx * bow,
+      cy: (by + ty) / 2 + ny * bow
+    };
+  }
 
-    ctx.moveTo(bl.x, bl.y);
-    ctx.bezierCurveTo(
-      bl.x + dirx * len * 0.3 + nx * 1.6,
-      bl.y + diry * len * 0.3 + ny * 1.6,
-      tl.x - dirx * tipR * 1.5 + nx * 0.8,
-      tl.y - diry * tipR * 1.5 + ny * 0.8,
-      tl.x,
-      tl.y
-    );
-    ctx.arc(tipCx, tipCy, tipR, Math.atan2(ny, nx), Math.atan2(ny, nx) - Math.PI, true);
-    ctx.bezierCurveTo(
-      tr.x - dirx * tipR * 1.5 - nx * 0.8,
-      tr.y - diry * tipR * 1.5 - ny * 0.8,
-      br.x + dirx * len * 0.3 - nx * 1.6,
-      br.y + diry * len * 0.3 - ny * 1.6,
-      br.x,
-      br.y
-    );
-    ctx.closePath();
-    return { dirx, diry, nx, ny, len };
+  function fingerPointAt(fr, t) {
+    const mt = 1 - t;
+    return {
+      x: mt * mt * fr.bx + 2 * mt * t * fr.cx + t * t * fr.tx,
+      y: mt * mt * fr.by + 2 * mt * t * fr.cy + t * t * fr.ty,
+      dx: 2 * mt * (fr.cx - fr.bx) + 2 * t * (fr.tx - fr.cx),
+      dy: 2 * mt * (fr.cy - fr.by) + 2 * t * (fr.ty - fr.cy)
+    };
+  }
+
+  function fingerHalfWidth(f, t) {
+    const taper = f.taper == null ? 0.16 : f.taper;
+    let w = (f.width / 2) * (1 - taper * t);
+    w *= 1 + 0.06 * Math.exp(-Math.pow((t - 0.17) / 0.075, 2));
+    w *= 1 + 0.04 * Math.exp(-Math.pow((t - 0.56) / 0.09, 2));
+    if (t > 0.86) {
+      const u = (t - 0.86) / 0.14;
+      w *= Math.sqrt(Math.max(0, 1 - u * u));
+    }
+    return w;
+  }
+
+  function fingerOutline(f, extend) {
+    const fr = fingerFrame(f, extend);
+    const left = [];
+    const right = [];
+    const steps = 30;
+    for (let i = 0; i <= steps; i++) {
+      const t = i / steps;
+      const p = fingerPointAt(fr, t);
+      const dl = Math.hypot(p.dx, p.dy) || 1;
+      const nx = -p.dy / dl;
+      const ny = p.dx / dl;
+      const hw = fingerHalfWidth(f, t);
+      left.push({ x: p.x + nx * hw, y: p.y + ny * hw });
+      right.push({ x: p.x - nx * hw, y: p.y - ny * hw });
+    }
+    return { fr, left, right };
+  }
+
+  function traceSmooth(points) {
+    ctx.lineTo(points[0].x, points[0].y);
+    for (let i = 1; i < points.length - 1; i++) {
+      const mx = (points[i].x + points[i + 1].x) / 2;
+      const my = (points[i].y + points[i + 1].y) / 2;
+      ctx.quadraticCurveTo(points[i].x, points[i].y, mx, my);
+    }
+    const last = points[points.length - 1];
+    ctx.lineTo(last.x, last.y);
+  }
+
+  function fingerPath(f, open, extend, from) {
+    const { left, right } = fingerOutline(f, extend);
+    const i0 = from || 0;
+    const l = left.slice(i0);
+    const r = right.slice(i0).reverse();
+    ctx.beginPath();
+    ctx.moveTo(l[0].x, l[0].y);
+    traceSmooth(l);
+    traceSmooth(r);
+    if (!open) ctx.closePath();
+    return fingerFrame(f, extend);
   }
 
   function palmPath() {
     ctx.beginPath();
-    ctx.moveTo(292, 840);
-    ctx.bezierCurveTo(274, 760, 282, 690, 318, 648);
-    ctx.bezierCurveTo(348, 620, 402, 612, 444, 622);
-    ctx.bezierCurveTo(480, 632, 502, 658, 508, 698);
-    ctx.bezierCurveTo(516, 752, 500, 804, 476, 840);
+    ctx.moveTo(330, 850);
+    ctx.bezierCurveTo(306, 812, 288, 780, 284, 750);
+    ctx.bezierCurveTo(280, 722, 288, 694, 304, 672);
+    ctx.bezierCurveTo(312, 660, 318, 652, 326, 646);
+    traceSmooth([
+      { x: 326, y: 646 },
+      { x: 350, y: 654 },
+      { x: 378, y: 640 },
+      { x: 404, y: 650 },
+      { x: 430, y: 644 },
+      { x: 456, y: 654 },
+      { x: 482, y: 668 },
+      { x: 505, y: 686 }
+    ]);
+    ctx.bezierCurveTo(514, 690, 510, 708, 506, 724);
+    ctx.bezierCurveTo(510, 762, 502, 806, 486, 850);
     ctx.closePath();
+  }
+
+  function palmOutlinePath() {
+    ctx.beginPath();
+    ctx.moveTo(326, 646);
+    ctx.bezierCurveTo(318, 652, 312, 660, 304, 672);
+    ctx.bezierCurveTo(288, 694, 280, 722, 284, 750);
+    ctx.bezierCurveTo(288, 780, 306, 812, 330, 850);
+    ctx.lineTo(486, 850);
+    ctx.bezierCurveTo(502, 806, 510, 762, 506, 724);
+    ctx.bezierCurveTo(510, 714, 512, 700, 505, 686);
+  }
+
+  function palmTopPath() {
+    ctx.beginPath();
+    ctx.moveTo(326, 646);
+    traceSmooth([
+      { x: 326, y: 646 },
+      { x: 350, y: 654 },
+      { x: 378, y: 640 },
+      { x: 404, y: 650 },
+      { x: 430, y: 644 },
+      { x: 456, y: 654 },
+      { x: 482, y: 668 },
+      { x: 505, y: 686 }
+    ]);
   }
 
   function nailPath(w, h) {
     const hw = w / 2;
     const hh = h / 2;
     ctx.beginPath();
-    ctx.moveTo(-w * 0.34, -hh);
-    ctx.bezierCurveTo(-hw * 1.03, -hh * 0.62, -hw * 0.98, -hh * 0.05, -hw * 0.86, hh * 0.22);
-    ctx.bezierCurveTo(-hw * 0.76, hh * 0.74, -hw * 0.36, hh, 0, hh);
-    ctx.bezierCurveTo(hw * 0.36, hh, hw * 0.76, hh * 0.74, hw * 0.86, hh * 0.22);
-    ctx.bezierCurveTo(hw * 0.98, -hh * 0.05, hw * 1.03, -hh * 0.62, w * 0.34, -hh);
-    ctx.bezierCurveTo(w * 0.16, -hh * 0.84, -w * 0.16, -hh * 0.84, -w * 0.34, -hh);
+    ctx.moveTo(-w * 0.31, -hh * 0.98);
+    ctx.bezierCurveTo(-hw * 0.92, -hh * 0.76, -hw * 1.0, -hh * 0.1, -w * 0.38, hh * 0.42);
+    ctx.bezierCurveTo(-w * 0.36, hh * 0.7, -w * 0.24, hh * 0.92, 0, hh);
+    ctx.bezierCurveTo(w * 0.24, hh * 0.92, w * 0.36, hh * 0.7, w * 0.38, hh * 0.42);
+    ctx.bezierCurveTo(hw * 1.0, -hh * 0.1, hw * 0.92, -hh * 0.76, w * 0.31, -hh * 0.98);
+    ctx.bezierCurveTo(w * 0.14, -hh * 0.9, -w * 0.14, -hh * 0.9, -w * 0.31, -hh * 0.98);
     ctx.closePath();
   }
 
   function drawFinger(f) {
-    const info = fingerPath(f);
-    const [bx, by] = f.base;
+    const ext = f.extend == null ? 46 : f.extend;
+    const fr = fingerFrame(f, ext);
+    const fa = fingerFrame(f, 0);
+    const extBase = { x: fa.bx - fa.dirx * ext, y: fa.by - fa.diry * ext };
     const [tx, ty] = f.tip;
-    const half = f.width / 2;
 
+    const mid = fingerPointAt(fr, 0.46);
+    const mdl = Math.hypot(mid.dx, mid.dy) || 1;
+    const mnx = -mid.dy / mdl;
+    const mny = mid.dx / mdl;
+    const midW = fingerHalfWidth(f, 0.46);
+
+    fingerPath(f, false, ext);
     const across = ctx.createLinearGradient(
-      bx + info.nx * half,
-      by + info.ny * half,
-      bx - info.nx * half,
-      by - info.ny * half
+      mid.x + mnx * midW,
+      mid.y + mny * midW,
+      mid.x - mnx * midW,
+      mid.y - mny * midW
     );
     across.addColorStop(0, SKIN.light);
-    across.addColorStop(0.34, SKIN.mid);
-    across.addColorStop(0.72, SKIN.shade);
+    across.addColorStop(0.3, SKIN.mid);
+    across.addColorStop(0.7, SKIN.shade);
     across.addColorStop(1, SKIN.deep);
     ctx.fillStyle = across;
     ctx.fill();
 
     ctx.save();
-    fingerPath(f);
+    fingerPath(f, false, ext);
     ctx.clip();
 
-    const along = ctx.createLinearGradient(bx, by, tx, ty);
-    along.addColorStop(0, 'rgba(120, 60, 45, 0.10)');
-    along.addColorStop(0.45, 'rgba(255, 255, 255, 0.03)');
-    along.addColorStop(1, 'rgba(255, 255, 255, 0.16)');
+    const along = ctx.createLinearGradient(fa.bx, fa.by, tx, ty);
+    along.addColorStop(0, 'rgba(126, 62, 48, 0.04)');
+    along.addColorStop(0.3, 'rgba(255, 255, 255, 0.02)');
+    along.addColorStop(0.72, 'rgba(255, 255, 255, 0.05)');
+    along.addColorStop(1, 'rgba(255, 255, 255, 0.15)');
     ctx.fillStyle = along;
     ctx.fillRect(0, 0, DW, DH);
 
-    const blush = ctx.createRadialGradient(tx, ty, 2, tx, ty, f.width * 0.9);
-    blush.addColorStop(0, 'rgba(233, 143, 128, 0.18)');
-    blush.addColorStop(1, 'rgba(233, 143, 128, 0)');
+    const tipPt = fingerPointAt(fa, 0.9);
+    const blush = ctx.createRadialGradient(tipPt.x, tipPt.y, 2, tipPt.x, tipPt.y, f.width * 0.85);
+    blush.addColorStop(0, 'rgba(236, 146, 130, 0.2)');
+    blush.addColorStop(1, 'rgba(236, 146, 130, 0)');
     ctx.fillStyle = blush;
     ctx.fillRect(0, 0, DW, DH);
 
-    ctx.strokeStyle = SKIN.crease;
-    ctx.lineWidth = 1.8;
+    const a = fingerPointAt(fa, 0.2);
+    const b = fingerPointAt(fa, 0.82);
+    const aw = fingerHalfWidth(f, 0.2);
+    const bw = fingerHalfWidth(f, 0.82);
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.22)';
+    ctx.lineWidth = f.width * 0.06;
     ctx.lineCap = 'round';
-    [0.34, 0.58].forEach((t) => {
-      const cx = bx + info.dirx * info.len * t;
-      const cy = by + info.diry * info.len * t;
-      const w = f.width * (0.34 - t * 0.08);
+    ctx.beginPath();
+    ctx.moveTo(a.x + mnx * aw * 0.72, a.y + mny * aw * 0.72);
+    ctx.quadraticCurveTo(
+      b.x + mnx * bw * 0.66,
+      b.y + mny * bw * 0.66,
+      b.x + mnx * bw * 0.32,
+      b.y + mny * bw * 0.32
+    );
+    ctx.stroke();
+
+    [0.07, 0.33, 0.62].forEach((t, i) => {
+      const p = fingerPointAt(fa, t);
+      const dlen = Math.hypot(p.dx, p.dy) || 1;
+      const ux = -p.dy / dlen;
+      const uy = p.dx / dlen;
+      const w = fingerHalfWidth(f, t) * (i === 0 ? 0.88 : i === 1 ? 0.72 : 0.62);
+      const bend = f.width * (i === 0 ? 0.14 : i === 1 ? 0.13 : 0.1);
+      ctx.strokeStyle = `rgba(151, 88, 68, ${i === 0 ? 0.18 : 0.22})`;
+      ctx.lineWidth = i === 0 ? 2 : 1.6;
       ctx.beginPath();
-      ctx.moveTo(cx + info.nx * w, cy + info.ny * w);
+      ctx.moveTo(p.x + ux * w, p.y + uy * w);
       ctx.quadraticCurveTo(
-        cx - info.dirx * f.width * 0.16,
-        cy - info.diry * f.width * 0.16,
-        cx - info.nx * w,
-        cy - info.ny * w
+        p.x + p.dx / dlen * bend,
+        p.y + p.dy / dlen * bend,
+        p.x - ux * w,
+        p.y - uy * w
+      );
+      ctx.stroke();
+
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
+      ctx.lineWidth = 1.2;
+      const off = f.width * 0.07;
+      ctx.beginPath();
+      ctx.moveTo(p.x + ux * w * 0.9 - p.dx / dlen * off, p.y + uy * w * 0.9 - p.dy / dlen * off);
+      ctx.quadraticCurveTo(
+        p.x - p.dx / dlen * (off - bend * 0.5),
+        p.y - p.dy / dlen * (off - bend * 0.5),
+        p.x - ux * w * 0.9 - p.dx / dlen * off,
+        p.y - uy * w * 0.9 - p.dy / dlen * off
       );
       ctx.stroke();
     });
-
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
-    ctx.lineWidth = f.width * 0.075;
-    ctx.beginPath();
-    const hx = bx + info.nx * half * 0.64;
-    const hy = by + info.ny * half * 0.64;
-    ctx.moveTo(hx + info.dirx * info.len * 0.14, hy + info.diry * info.len * 0.14);
-    ctx.quadraticCurveTo(
-      tx + info.nx * half * 0.42 + info.dirx * 10,
-      ty + info.ny * half * 0.42 + info.diry * 10,
-      tx + info.nx * half * 0.2,
-      ty + info.ny * half * 0.2
-    );
-    ctx.stroke();
     ctx.restore();
 
-    fingerPath(f);
-    ctx.strokeStyle = SKIN.line;
-    ctx.lineWidth = 2.1;
+    fingerPath(f, true, ext, 5);
+    ctx.strokeStyle = 'rgba(157, 92, 73, 0.3)';
+    ctx.lineWidth = 1.6;
     ctx.lineJoin = 'round';
+    ctx.lineCap = 'round';
     ctx.stroke();
   }
 
   function drawPalm() {
     palmPath();
-    const grad = ctx.createLinearGradient(292, 620, 512, 820);
-    grad.addColorStop(0, SKIN.light);
-    grad.addColorStop(0.4, SKIN.mid);
-    grad.addColorStop(0.78, SKIN.shade);
+    const grad = ctx.createLinearGradient(300, 620, 510, 840);
+    grad.addColorStop(0, SKIN.mid);
+    grad.addColorStop(0.34, SKIN.mid);
+    grad.addColorStop(0.72, SKIN.shade);
     grad.addColorStop(1, SKIN.deep);
+    ctx.save();
+    ctx.shadowColor = 'rgba(138, 70, 54, 0.14)';
+    ctx.shadowBlur = 14;
+    ctx.shadowOffsetY = 6;
     ctx.fillStyle = grad;
     ctx.fill();
+    ctx.restore();
 
     ctx.save();
     palmPath();
     ctx.clip();
 
-    const sheen = ctx.createRadialGradient(356, 664, 18, 356, 664, 220);
-    sheen.addColorStop(0, 'rgba(255, 255, 255, 0.19)');
-    sheen.addColorStop(0.6, 'rgba(255, 255, 255, 0.03)');
-    sheen.addColorStop(1, 'rgba(130, 60, 45, 0.08)');
+    const sheen = ctx.createRadialGradient(350, 706, 16, 350, 706, 235);
+    sheen.addColorStop(0, 'rgba(255, 255, 255, 0.14)');
+    sheen.addColorStop(0.5, 'rgba(255, 255, 255, 0.03)');
+    sheen.addColorStop(1, 'rgba(128, 58, 44, 0.08)');
     ctx.fillStyle = sheen;
     ctx.fillRect(0, 0, DW, DH);
 
-    ctx.strokeStyle = 'rgba(150, 85, 66, 0.1)';
-    ctx.lineWidth = 2.4;
+    const backLight = ctx.createRadialGradient(392, 730, 4, 392, 730, 120);
+    backLight.addColorStop(0, 'rgba(255, 255, 255, 0.08)');
+    backLight.addColorStop(1, 'rgba(255, 255, 255, 0)');
+    ctx.fillStyle = backLight;
+    ctx.fillRect(0, 0, DW, DH);
+
+    [
+      [338, 648, 30],
+      [380, 630, 30],
+      [432, 634, 28],
+      [482, 662, 26]
+    ].forEach(([x, y, r]) => {
+      const g = ctx.createRadialGradient(x, y, 1, x, y, r);
+      g.addColorStop(0, 'rgba(255, 255, 255, 0.09)');
+      g.addColorStop(1, 'rgba(255, 255, 255, 0)');
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.arc(x, y, r, 0, Math.PI * 2);
+      ctx.fill();
+    });
+
+    [
+      [354, 644, 18],
+      [406, 630, 16],
+      [458, 644, 14]
+    ].forEach(([x, y, r]) => {
+      const g = ctx.createRadialGradient(x, y, 1, x, y, r);
+      g.addColorStop(0, 'rgba(140, 76, 58, 0.08)');
+      g.addColorStop(1, 'rgba(140, 76, 58, 0)');
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.ellipse(x, y, r, r * 0.6, 0, 0, Math.PI * 2);
+      ctx.fill();
+    });
+
+    ctx.strokeStyle = 'rgba(150, 85, 66, 0.07)';
+    ctx.lineWidth = 3;
     ctx.lineCap = 'round';
     [
-      [326, 660, 350, 750],
-      [382, 646, 392, 746],
-      [438, 650, 436, 744]
+      [336, 700, 348, 812],
+      [382, 690, 388, 812],
+      [430, 696, 426, 814],
+      [480, 706, 462, 812]
     ].forEach(([x1, y1, x2, y2]) => {
       ctx.beginPath();
       ctx.moveTo(x1, y1);
-      ctx.quadraticCurveTo((x1 + x2) / 2 + 4, (y1 + y2) / 2, x2, y2);
+      ctx.quadraticCurveTo((x1 + x2) / 2 + (x1 < 400 ? -8 : 6), (y1 + y2) / 2, x2, y2);
       ctx.stroke();
     });
+
+    ctx.strokeStyle = 'rgba(108, 92, 120, 0.055)';
+    ctx.lineWidth = 4;
+    [
+      [366, 744, 352, 818],
+      [412, 748, 418, 820]
+    ].forEach(([x1, y1, x2, y2]) => {
+      ctx.beginPath();
+      ctx.moveTo(x1, y1);
+      ctx.bezierCurveTo(x1 + 16, y1 + 26, x2 - 14, y2 - 30, x2, y2);
+      ctx.stroke();
+    });
+
+    ctx.strokeStyle = 'rgba(140, 78, 62, 0.09)';
+    ctx.lineWidth = 2.2;
+    [
+      [344, 810],
+      [360, 824]
+    ].forEach(([cx, cy]) => {
+      ctx.beginPath();
+      ctx.moveTo(cx - 34, cy - 4);
+      ctx.quadraticCurveTo(cx, cy + 6, cx + 40, cy - 2);
+      ctx.stroke();
+    });
+
     ctx.restore();
 
+    // Soft occlusion where the fingers rise out of the palm.
+    ctx.save();
     palmPath();
-    ctx.strokeStyle = SKIN.line;
-    ctx.lineWidth = 2.3;
-    ctx.lineJoin = 'round';
+    ctx.clip();
+    ctx.shadowColor = 'rgba(146, 78, 60, 0.18)';
+    ctx.shadowBlur = 9;
+    ctx.shadowOffsetY = 5;
+    ctx.strokeStyle = 'rgba(146, 78, 60, 0.05)';
+    ctx.lineWidth = 1.5;
+    palmTopPath();
     ctx.stroke();
+    ctx.restore();
+
+    palmOutlinePath();
+    ctx.strokeStyle = SKIN.line;
+    ctx.lineWidth = 2;
+    ctx.lineJoin = 'round';
+    ctx.lineCap = 'round';
+    ctx.stroke();
+  }
+
+  function renderHandBody() {
+    const scale = 2;
+    const off = document.createElement('canvas');
+    off.width = Math.ceil(DW * scale);
+    off.height = Math.ceil(DH * scale);
+    const bctx = off.getContext('2d');
+    bctx.scale(scale, scale);
+
+    const prev = ctx;
+    ctx = bctx;
+    FINGERS.forEach((f) => drawFinger(f));
+    drawPalm();
+    ctx = prev;
+
+    bodyCanvas = off;
   }
 
   function drawNatural(ctx2, n) {
     const { w, h } = n;
     const hw = w / 2;
     const hh = h / 2;
-    const grad = ctx2.createLinearGradient(0, -hh, 0, hh);
-    grad.addColorStop(0, '#f3c6b8');
-    grad.addColorStop(0.42, '#eeb5a4');
-    grad.addColorStop(0.72, '#e6a692');
-    grad.addColorStop(1, '#efd0c5');
-    ctx2.fillStyle = grad;
+
+    const bed = ctx2.createLinearGradient(0, -hh, 0, hh);
+    bed.addColorStop(0, '#e9aea3');
+    bed.addColorStop(0.18, '#eeb9ae');
+    bed.addColorStop(0.58, '#f2cec5');
+    bed.addColorStop(0.86, '#f5d9d0');
+    bed.addColorStop(1, '#f6ddd5');
+    ctx2.fillStyle = bed;
     ctx2.fillRect(-hw, -hh, w, h);
 
-    const blush = ctx2.createRadialGradient(0, hh * 0.2, 1, 0, hh * 0.2, hw * 1.25);
-    blush.addColorStop(0, 'rgba(249, 177, 170, 0.42)');
-    blush.addColorStop(1, 'rgba(249, 177, 170, 0)');
+    const blush = ctx2.createRadialGradient(0, hh * 0.18, 1, 0, hh * 0.18, hw * 1.3);
+    blush.addColorStop(0, 'rgba(238, 150, 142, 0.4)');
+    blush.addColorStop(1, 'rgba(238, 150, 142, 0)');
     ctx2.fillStyle = blush;
     ctx2.fillRect(-hw, -hh, w, h);
 
-    const freeEdge = ctx2.createLinearGradient(0, hh * 0.62, 0, hh);
-    freeEdge.addColorStop(0, 'rgba(255, 250, 247, 0)');
-    freeEdge.addColorStop(0.72, 'rgba(255, 250, 247, 0.16)');
-    freeEdge.addColorStop(1, 'rgba(255, 250, 247, 0.3)');
-    ctx2.fillStyle = freeEdge;
-    ctx2.fillRect(-hw, hh * 0.62, w, hh * 0.38);
-
-    ctx2.strokeStyle = 'rgba(186, 122, 107, 0.22)';
-    ctx2.lineWidth = 1.3;
+    const lun = ctx2.createRadialGradient(0, -hh * 0.6, 1, 0, -hh * 0.6, w * 0.3);
+    lun.addColorStop(0, 'rgba(255, 249, 245, 0.95)');
+    lun.addColorStop(0.7, 'rgba(255, 247, 243, 0.45)');
+    lun.addColorStop(1, 'rgba(255, 247, 243, 0)');
+    ctx2.globalAlpha = 0.32;
+    ctx2.fillStyle = lun;
     ctx2.beginPath();
-    ctx2.moveTo(-w * 0.26, -hh * 0.72);
-    ctx2.quadraticCurveTo(0, -hh * 0.58, w * 0.26, -hh * 0.72);
-    ctx2.stroke();
+    ctx2.ellipse(0, -hh * 0.62, w * 0.28, h * 0.13, 0, 0, Math.PI * 2);
+    ctx2.fill();
+    ctx2.globalAlpha = 1;
 
-    ctx2.strokeStyle = 'rgba(190, 132, 116, 0.12)';
-    ctx2.lineWidth = 0.9;
+    const freeEdge = ctx2.createLinearGradient(0, hh * 0.72, 0, hh);
+    freeEdge.addColorStop(0, 'rgba(255, 252, 249, 0)');
+    freeEdge.addColorStop(0.75, 'rgba(255, 252, 249, 0.1)');
+    freeEdge.addColorStop(1, 'rgba(255, 252, 249, 0.22)');
+    ctx2.fillStyle = freeEdge;
+    ctx2.fillRect(-hw, hh * 0.72, w, hh * 0.28);
+
+    ctx2.strokeStyle = 'rgba(196, 137, 124, 0.08)';
+    ctx2.lineWidth = 0.8;
     for (let i = -2; i <= 2; i++) {
       ctx2.beginPath();
-      ctx2.moveTo(i * w * 0.09, -hh * 0.45);
-      ctx2.quadraticCurveTo(i * w * 0.11, 0, i * w * 0.08, hh * 0.5);
+      ctx2.moveTo(i * w * 0.11, -hh * 0.42);
+      ctx2.quadraticCurveTo(i * w * 0.13, 0, i * w * 0.09, hh * 0.55);
       ctx2.stroke();
     }
+
+    const cut = ctx2.createLinearGradient(0, -hh, 0, -hh * 0.3);
+    cut.addColorStop(0, 'rgba(176, 108, 95, 0.22)');
+    cut.addColorStop(1, 'rgba(176, 108, 95, 0)');
+    ctx2.fillStyle = cut;
+    ctx2.fillRect(-hw, -hh, w, hh * 0.7);
+
+    const side = ctx2.createLinearGradient(-hw, 0, hw, 0);
+    side.addColorStop(0, 'rgba(166, 102, 88, 0.12)');
+    side.addColorStop(0.14, 'rgba(166, 102, 88, 0)');
+    side.addColorStop(0.86, 'rgba(166, 102, 88, 0)');
+    side.addColorStop(1, 'rgba(166, 102, 88, 0.12)');
+    ctx2.fillStyle = side;
+    ctx2.fillRect(-hw, -hh, w, h);
   }
 
   function drawHeart(ctx2, x, y, s) {
@@ -710,10 +939,10 @@
     ctx.scale(scale, scale);
 
     ctx.save();
-    ctx.shadowColor = 'rgba(87, 37, 58, 0.34)';
-    ctx.shadowBlur = 8;
-    ctx.shadowOffsetY = 4;
-    ctx.fillStyle = 'rgba(86, 38, 56, 0.42)';
+    ctx.shadowColor = 'rgba(87, 37, 58, 0.24)';
+    ctx.shadowBlur = 5;
+    ctx.shadowOffsetY = 2;
+    ctx.fillStyle = 'rgba(86, 38, 56, 0.3)';
     nailPath(w, h);
     ctx.fill();
     ctx.restore();
@@ -747,16 +976,31 @@
       drawLook(ctx, n, n.look, time);
     }
 
-    drawGloss(ctx, n, n.look && n.look.color ? 1 : 0.55);
+    const cuticle = ctx.createLinearGradient(0, -hh, 0, -hh * 0.38);
+    cuticle.addColorStop(0, 'rgba(170, 100, 86, 0.26)');
+    cuticle.addColorStop(0.55, 'rgba(190, 120, 104, 0.07)');
+    cuticle.addColorStop(1, 'rgba(190, 120, 104, 0)');
+    ctx.fillStyle = cuticle;
+    ctx.fillRect(-hw, -hh, w, hh * 0.62);
+
+    const nailSides = ctx.createLinearGradient(-hw, 0, hw, 0);
+    nailSides.addColorStop(0, 'rgba(120, 55, 48, 0.15)');
+    nailSides.addColorStop(0.12, 'rgba(120, 55, 48, 0)');
+    nailSides.addColorStop(0.88, 'rgba(120, 55, 48, 0)');
+    nailSides.addColorStop(1, 'rgba(120, 55, 48, 0.15)');
+    ctx.fillStyle = nailSides;
+    ctx.fillRect(-hw, -hh, w, h);
+
+    drawGloss(ctx, n, n.look && n.look.color ? 1 : 0.42);
     ctx.restore();
 
     nailPath(w, h);
-    ctx.strokeStyle = 'rgba(71, 30, 50, 0.28)';
-    ctx.lineWidth = 1.4;
+    ctx.strokeStyle = 'rgba(71, 30, 50, 0.16)';
+    ctx.lineWidth = 1.1;
     ctx.stroke();
 
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
-    ctx.lineWidth = 0.8;
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.16)';
+    ctx.lineWidth = 0.7;
     ctx.beginPath();
     ctx.moveTo(-hw * 0.6, -hh * 0.72);
     ctx.quadraticCurveTo(-hw * 0.84, -hh * 0.2, -hw * 0.66, hh * 0.18);
@@ -794,20 +1038,20 @@
     ctx.translate(-DW / 2, -DH / 2 + Math.sin(time * 1.05) * 1.4);
 
     ctx.save();
-    ctx.translate(352, 660);
-    ctx.scale(1, 0.38);
-    const shadow = ctx.createRadialGradient(0, 0, 20, 0, 0, 250);
-    shadow.addColorStop(0, 'rgba(120, 51, 84, 0.24)');
-    shadow.addColorStop(0.55, 'rgba(120, 51, 84, 0.1)');
+    ctx.translate(360, 700);
+    ctx.scale(1, 0.4);
+    const shadow = ctx.createRadialGradient(0, 0, 20, 0, 0, 245);
+    shadow.addColorStop(0, 'rgba(120, 51, 84, 0.2)');
+    shadow.addColorStop(0.55, 'rgba(120, 51, 84, 0.08)');
     shadow.addColorStop(1, 'rgba(120, 51, 84, 0)');
     ctx.fillStyle = shadow;
     ctx.beginPath();
-    ctx.arc(0, 0, 250, 0, Math.PI * 2);
+    ctx.arc(0, 0, 245, 0, Math.PI * 2);
     ctx.fill();
     ctx.restore();
 
-    FINGERS.forEach(drawFinger);
-    drawPalm();
+    if (!bodyCanvas) renderHandBody();
+    ctx.drawImage(bodyCanvas, 0, 0, DW, DH);
 
     nails.forEach((n) => drawNail(n, time));
     ctx.restore();
